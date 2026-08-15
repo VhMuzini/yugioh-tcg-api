@@ -62,7 +62,11 @@ export async function cardsRoutes(app: FastifyInstance) {
   // já re-hospedada — pensado pra tela de listagem/livro.
   app.get<{ Querystring: SearchQuerystring }>('/cards', async (request, reply) => {
     const num = Math.min(request.query.num ?? DEFAULT_LIST_SIZE, MAX_LIST_SIZE);
-    const raw = await ygoprodeckService.searchCards({ ...request.query, num });
+    // A YGOPRODeck exige que "num" sempre venha acompanhado de "offset" —
+    // mandar um sem o outro faz a API responder 400 (interpretado por nós
+    // como "nenhum resultado"). Por isso sempre mandamos os dois juntos.
+    const offset = request.query.offset ?? 0;
+    const raw = await ygoprodeckService.searchCards({ ...request.query, num, offset });
 
     if (raw.length === 0) {
       return reply.status(404).send({ message: 'Nenhuma carta encontrada.' });

@@ -30,8 +30,26 @@ export interface YgoCardRaw {
 }
 
 /**
- * Carta já normalizada para o nosso front-end, com as imagens
- * apontando para o Cloudinary em vez do domínio da YGOPRODeck.
+ * Versão leve da carta, usada na listagem (/cards). Só re-hospeda a
+ * imagem pequena, pra não estourar o tempo de resposta re-hospedando
+ * 3 imagens de cada carta de um resultado com dezenas de itens.
+ */
+export interface CardSummary {
+  id: number;
+  name: string;
+  type: string;
+  race: string;
+  archetype?: string;
+  atk?: number;
+  def?: number;
+  level?: number;
+  attribute?: string;
+  image: string;
+}
+
+/**
+ * Carta completa, usada no detalhe (/cards/:id), com as três imagens
+ * já re-hospedadas no Cloudinary em vez do domínio da YGOPRODeck.
  */
 export interface Card {
   id: number;

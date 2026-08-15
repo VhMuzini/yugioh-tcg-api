@@ -26,8 +26,11 @@ class YgoprodeckService {
     if (query.race) params.set('race', query.race);
     if (query.attribute) params.set('attribute', query.attribute);
     if (query.archetype) params.set('archetype', query.archetype);
-    if (query.num) params.set('num', String(query.num));
-    if (query.offset) params.set('offset', String(query.offset));
+    // Cuidado: usar "if (query.num)" quebra quando o valor é 0, já que
+    // 0 é falsy em JS. offset=0 é um valor legítimo e comum (primeira
+    // página), então checamos undefined explicitamente.
+    if (query.num !== undefined) params.set('num', String(query.num));
+    if (query.offset !== undefined) params.set('offset', String(query.offset));
 
     return `${env.ygoprodeck.baseUrl}/cardinfo.php?${params.toString()}`;
   }

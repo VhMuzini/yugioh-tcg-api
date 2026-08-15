@@ -1,4 +1,5 @@
 import { v2 as cloudinary } from 'cloudinary';
+import Bottleneck from 'bottleneck';
 import { env } from '../config/env';
 import type { YgoCardImage } from '../types/card.types';
 
@@ -14,6 +15,12 @@ export interface RehostedImages {
   cropped: string;
 }
 
+// A instância free do Render tem só 0.1 CPU. Sem limitar a concorrência
+// aqui, uma busca que retorna dezenas de cartas dispara dezenas de
+// uploads simultâneos pro Cloudinary e estoura o timeout do proxy do
+// Render (499 / Request Timeout).
+const limiter = new Bottleneck({ maxConcurrent: 6 });
+
 class CloudinaryService {
   /**
    * Pede pro Cloudinary buscar a imagem direto na URL da YGOPRODeck e
@@ -26,16 +33,24 @@ class CloudinaryService {
    * já existente sem nova requisição à origem.
    */
   private async uploadOnce(remoteUrl: string, publicId: string): Promise<string> {
-    const result = await cloudinary.uploader.upload(remoteUrl, {
-      public_id: publicId,
-      folder: env.cloudinary.folder,
-      overwrite: false,
-      unique_filename: false,
-      resource_type: 'image',
-    });
+    const result = await limiter.schedule(() =>
+      cloudinary.uploader.upload(remoteUrl, {
+        public_id: publicId,
+        folder: env.cloudinary.folder,
+        overwrite: false,
+        unique_filename: false,
+        resource_type: 'image',
+      }),
+    );
     return result.secure_url;
   }
 
+  /** Usado na listagem: re-hospeda só a imagem pequena de uma carta. */
+  async rehostSmallImage(cardId: number, image: YgoCardImage): Promise<string> {
+    return this.uploadOnce(image.image_url_small, `card_${cardId}_small`);
+  }
+
+  /** Usado no detalhe: re-hospeda as três variações de uma carta. */
   async rehostCardImages(cardId: number, image: YgoCardImage): Promise<RehostedImages> {
     const [full, small, cropped] = await Promise.all([
       this.uploadOnce(image.image_url, `card_${cardId}_full`),

@@ -1,7 +1,29 @@
 import type { FastifyInstance } from 'fastify';
 import { ygoprodeckService } from '../services/ygoprodeck.service';
 import { cloudinaryService } from '../services/cloudinary.service';
-import type { Card, YgoCardRaw } from '../types/card.types';
+import type { Card, CardSummary, YgoCardRaw } from '../types/card.types';
+
+// A YGOPRODeck pode devolver centenas de resultados numa busca fuzzy
+// (ex: fname=magician). Re-hospedar imagem de todos de uma vez estoura
+// o tempo de resposta na instância free do Render. Limitamos por
+// padrão e deixamos o cliente paginar com num/offset.
+const DEFAULT_LIST_SIZE = 24;
+const MAX_LIST_SIZE = 24;
+
+function toSummary(raw: YgoCardRaw, image: string): CardSummary {
+  return {
+    id: raw.id,
+    name: raw.name,
+    type: raw.type,
+    race: raw.race,
+    archetype: raw.archetype,
+    atk: raw.atk,
+    def: raw.def,
+    level: raw.level,
+    attribute: raw.attribute,
+    image,
+  };
+}
 
 async function toCard(raw: YgoCardRaw): Promise<Card> {
   const images = await cloudinaryService.rehostCardImages(raw.id, raw.card_images[0]);
@@ -35,19 +57,32 @@ interface SearchQuerystring {
 }
 
 export async function cardsRoutes(app: FastifyInstance) {
-  // GET /cards?fname=magician&type=Spell Card&num=20&offset=0
+  // GET /cards?fname=magician&type=Spell Card&num=24&offset=0
+  // Retorna a versão leve da carta (CardSummary), com só a imagem pequena
+  // já re-hospedada — pensado pra tela de listagem/livro.
   app.get<{ Querystring: SearchQuerystring }>('/cards', async (request, reply) => {
-    const raw = await ygoprodeckService.searchCards(request.query);
+    const num = Math.min(request.query.num ?? DEFAULT_LIST_SIZE, MAX_LIST_SIZE);
+    const raw = await ygoprodeckService.searchCards({ ...request.query, num });
 
     if (raw.length === 0) {
       return reply.status(404).send({ message: 'Nenhuma carta encontrada.' });
     }
 
-    const cards = await Promise.all(raw.map(toCard));
+    const page = raw.slice(0, num);
+
+    const cards = await Promise.all(
+      page.map(async (card) => {
+        const image = await cloudinaryService.rehostSmallImage(card.id, card.card_images[0]);
+        return toSummary(card, image);
+      }),
+    );
+
     return { data: cards, total: cards.length };
   });
 
   // GET /cards/:id
+  // Retorna a carta completa, com as três variações de imagem
+  // re-hospedadas — usado na tela de detalhe.
   app.get<{ Params: { id: string } }>('/cards/:id', async (request, reply) => {
     const raw = await ygoprodeckService.getCardById(request.params.id);
 

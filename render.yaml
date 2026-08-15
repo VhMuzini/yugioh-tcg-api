@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: yugioh-tcg-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: 3333
+      - key: HOST
+        value: 0.0.0.0
+      - key: CORS_ORIGIN
+        sync: false
+      - key: YGOPRODECK_BASE_URL
+        value: https://db.ygoprodeck.com/api/v7
+      - key: YGOPRODECK_MAX_CONCURRENT
+        value: 5
+      - key: YGOPRODECK_MIN_TIME_MS
+        value: 100
+      - key: CARD_CACHE_TTL
+        value: 172800
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: CLOUDINARY_FOLDER
+        value: yugioh-tcg
